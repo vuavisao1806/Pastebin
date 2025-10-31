@@ -10,6 +10,7 @@ mongoose.connect(mongoDB);
 const db = mongoose.connection;
 main().catch((err) => console.log(err));
 
+
 async function main() {
     try {
         await mongoose.connect(mongoDB);
