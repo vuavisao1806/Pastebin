@@ -1,6 +1,4 @@
 const mongoose = require("mongoose");
-const nodemon = require("nodemon");
-
 
 const pasteSchema = new mongoose.Schema({
     title: {
