@@ -26,11 +26,6 @@ app.use(cors({
 
 app.options("*", cors());
 
-console.log(typeof router);          // phải là 'function'
-console.log(typeof notFoundHandler); // 'function'
-console.log(typeof errorHandler);    // 'function'
-
-
 app.use("/api", router);
 app.use(notFoundHandler);
 app.use(errorHandler);
