@@ -7,17 +7,38 @@ const { StatusCodes } = require("http-status-codes");
 
 const catchAsyncHandler = require("../utils/catchAsyncHandler");
 const { NotFoundError, ForbiddenError, BadRequestError  } = require("../utils/ApiError");
-const { Types } = require("mongoose");
 
 router.post("/save", catchAsyncHandler(async (req, res) => {
     const { title, pasteValue, expiryTime } = req.body
 
-    const _id = new Types.ObjectId();
+    // const _id = new Types.ObjectId();
 
     const postQueue = req.app.get("postQueue");
-    await postQueue.add("createPastebin", { _id, title, pasteValue, expiryTime });
+    // await postQueue.add("createPastebin", { _id, title, pasteValue, expiryTime });
+    const job = await postQueue.add("createPastebin", { title, pasteValue, expiryTime }, {
+        removeOnFail: false
+    })
+    res.set("Location", `/jobs/${job.id}`);
+    return res.status(StatusCodes.ACCEPTED).json({ jobId: job.id });
+}));
 
-    return res.status(StatusCodes.CREATED).json({ _id });
+router.get("/jobs/:jobId", catchAsyncHandler(async (req, res) => {
+    const postQueue = req.app.get("postQueue");
+    const job = await postQueue.getJob(req.params.jobId);
+    if (!job) {
+        return res.status(StatusCodes.NOT_FOUND).json({ message: "Job not found" });
+    }
+
+    const currentState = await job.getState();
+    if (currentState === "completed") {
+        const result = await job.returnvalue;
+        return res.json({ currentState, id: result?.id });
+    }
+    if (currentState === "failed") {
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR)
+            .json({ currentState, reason: job.failedReason });
+    }
+    return res.status(StatusCodes.ACCEPTED).json({ currentState });
 }));
 
 router.get("/:id", catchAsyncHandler(async (req, res) => {

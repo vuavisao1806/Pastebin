@@ -6,15 +6,15 @@ class BaseCompetingConsumer extends Worker {
         this.setMaxListeners(Infinity);
 
         this.on("error", (error) => {
-            console.error("Post queue error:", error);
+            // console.error("Post queue error:", error);
         });
 
         this.on("failed", (job, error) => {
-            console.error("Post job failed:", job.id, error);
+            // console.error("Post job failed:", job.id, error);
         });
 
         this.on("completed", (job) => {
-            console.log("Job completed:", job.id);
+            // console.log("Job completed:", job.id);
         });
     }
 }

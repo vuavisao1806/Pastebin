@@ -7,7 +7,7 @@ class BaseQueue extends Queue {
     constructor(name, redisConnection) {
         super(name, { connection: redisConnection });
         this.redisConnection = redisConnection;
-        this.workers = [];
+        this.competingConsumers = [];
         this.setMaxListeners(Infinity);
     }
 }

@@ -3,37 +3,30 @@ const BaseCompetingConsumer = require("./BaseCompetingConsumer");
 const Document = require("../../models/model");
 const { BadRequestError } = require("../ApiError");
 
-const POST_WORKER_NUMS = 1;
+const POST_COMPETING_CONSUMER_NUMBER = 1;
 
 class PostQueue extends BaseQueue {
     constructor(name, redisConnection) {
         super(name, redisConnection);
 
-        for (let i = 0; i < POST_WORKER_NUMS; ++i) {
-            this.workers.push(this.createPostWorker());
+        for (let i = 0; i < POST_COMPETING_CONSUMER_NUMBER; ++i) {
+            this.competingConsumers.push(this.createPostCompetingConsumer());
         }
     }
 
-    createPostWorker() {
+    createPostCompetingConsumer() {
         return new BaseCompetingConsumer(
             "post-queue",
             async (job) => {
                 try {
-                    const { _id, title, pasteValue, expiryTime } = job.data;
-
-                    await Document.findByIdAndUpdate(
-                        _id,
-                        {
-                            _id,
-                            title,
-                            pasteValue,
-                            uploadTime: new Date(),
-                            expiryTime: calculateExpiryTime(expiryTime),
-                        },
-                        { upsert: true, new: true }
-                    );
-
-                    return { id: _id };
+                    const { title, pasteValue, expiryTime } = job.data;
+                    const document = await Document.create({
+                        title,
+                        pasteValue,
+                        uploadTime: new Date(),
+                        expiryTime: calculateExpiryTime(expiryTime)
+                    });
+                    return { id: document._id.toString() };
                 } catch (error) {
                     console.error(`Job ${job.id} failed:`, error);
                     throw error;
