@@ -60,15 +60,49 @@ router.get("/jobs/:jobId", catchAsyncHandler(async (req, res) => {
 
 router.get("/:id", catchAsyncHandler(async (req, res) => {
     const id = req.params.id;
-    const document = await getQueue.add(async (req, res) => {
-        return await Document.findById(id);
+    const document = await getQueue.add(async () => {
+        const redis = req.app.get("clientRedis");
+
+        const cacheKey = `document:${id}`;
+        let cachedDocument = null;
+
+        if (redis) {
+            cachedDocument = await redis.get(cacheKey);
+        }
+
+        let document;
+        if (cachedDocument) {
+            document = JSON.parse(cachedDocument);
+            if (document.expiryTime) {
+                document.expiryTime = new Date(document.expiryTime);
+            }
+            // console.debug(`Cache hit for the document that has id: ${id}`);
+        } else {
+            // console.debug(`Cache miss for the document that has id: ${id}`);
+            document = await Document.findById(id);
+        }
+        if (!document) {
+            throw new NotFoundError("Document not found");
+        }
+        if (document.expiryTime && document.expiryTime < new Date()) {
+            if (cachedDocument && redis) {
+                await redis.del(cacheKey);
+            }
+            throw new ForbiddenError("Paste has expired");
+        }
+        if (!cachedDocument && redis) {
+            let cacheTime;
+            if (document.expiryTime) {
+                cacheTime = Math.floor((document.expiryTime - Date.now()) / 1_000);
+            } else {
+                cacheTime = 900;
+            }
+            if (cacheTime > 0) {
+                await redis.set(cacheKey, JSON.stringify(document), "EX", cacheTime);
+            }
+        }
+        return document;
     });
-    if (!document) {
-        throw new NotFoundError("Document not found");
-    }
-    if (document.expiryTime && document.expiryTime < new Date()) {
-        throw new ForbiddenError("Paste has expired");
-    }
     return res.json({
         text: document.pasteValue,
         uploadTime: document.uploadTime,
