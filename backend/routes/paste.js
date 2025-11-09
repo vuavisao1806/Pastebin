@@ -1,7 +1,10 @@
 const {express} = require("../configs/index");
 const router = express.Router();
 
-const Document = require("../models/model")
+const Document = require("../models/model");
+
+const PQueue = require("p-queue").default;
+const getQueue = new PQueue({ concurrency: 5 });
 
 const { StatusCodes } = require("http-status-codes");
 
@@ -11,10 +14,8 @@ const { NotFoundError, ForbiddenError, BadRequestError  } = require("../utils/Ap
 router.post("/save", catchAsyncHandler(async (req, res) => {
     const { title, pasteValue, expiryTime } = req.body
 
-    // const _id = new Types.ObjectId();
 
     const postQueue = req.app.get("postQueue");
-    // await postQueue.add("createPastebin", { _id, title, pasteValue, expiryTime });
     const job = await postQueue.add("createPastebin", { title, pasteValue, expiryTime }, {
         removeOnFail: false
     })
@@ -30,20 +31,38 @@ router.get("/jobs/:jobId", catchAsyncHandler(async (req, res) => {
     }
 
     const currentState = await job.getState();
+
+    const { timestamp, processedOn, finishedOn } = job;
+
+    const waitingTime =
+        ((timestamp && processedOn) ? processedOn - timestamp : null);
+    const processingTime =
+        ((processedOn && finishedOn) ? finishedOn - processedOn : null);
+    const totalTime =
+        ((timestamp && finishedOn) ? finishedOn - timestamp : null);
+
+    const timeEvents = {
+        waitingTime,
+        processingTime,
+        totalTime
+    }
+
     if (currentState === "completed") {
-        const result = await job.returnvalue;
-        return res.json({ currentState, id: result?.id });
+        const result = job.returnvalue;
+        return res.json({ currentState, id: result?.id, timeEvents });
     }
     if (currentState === "failed") {
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR)
-            .json({ currentState, reason: job.failedReason });
+            .json({ currentState, reason: job.failedReason, timeEvents });
     }
-    return res.status(StatusCodes.ACCEPTED).json({ currentState });
+    return res.status(StatusCodes.ACCEPTED).json({ currentState, timeEvents });
 }));
 
 router.get("/:id", catchAsyncHandler(async (req, res) => {
     const id = req.params.id;
-    const document = await Document.findById(id);
+    const document = await getQueue.add(async (req, res) => {
+        return await Document.findById(id);
+    });
     if (!document) {
         throw new NotFoundError("Document not found");
     }

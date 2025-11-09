@@ -18,6 +18,7 @@
     "http-status-codes": "^2.3.0",
     "ioredis": "^5.4.1",
     "mongoose": "^8.2.2",
+    "p-queue": "^9.0.0",
     "redis": "^5.9.0"
   },
   "devDependencies": {
