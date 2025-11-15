@@ -4,7 +4,7 @@ const router = express.Router();
 const Document = require("../models/model");
 
 const PQueue = require("p-queue").default;
-const getQueue = new PQueue({ concurrency: 5 });
+const getQueue = new PQueue({ concurrency: 5, intervalCap: 20, interval: 2  });
 
 const { StatusCodes } = require("http-status-codes");
 
@@ -19,6 +19,14 @@ router.post("/save", catchAsyncHandler(async (req, res) => {
     const job = await postQueue.add("createPastebin", { title, pasteValue, expiryTime }, {
         removeOnFail: false
     })
+
+    // for checking rate limiting
+    // const maxJobs = 10;
+    // const ttl = await postQueue.getRateLimitTtl(maxJobs);
+    // if (ttl > 0) {
+    //     console.log("Post queue is rate limited")
+    // }
+
     res.set("Location", `/jobs/${job.id}`);
     return res.status(StatusCodes.ACCEPTED).json({ jobId: job.id });
 }));

@@ -3,7 +3,7 @@ const BaseCompetingConsumer = require("./BaseCompetingConsumer");
 const Document = require("../../models/model");
 const { BadRequestError } = require("../ApiError");
 
-const POST_COMPETING_CONSUMER_NUMBER = 1;
+const POST_COMPETING_CONSUMER_NUMBER = 8;
 
 class PostQueue extends BaseQueue {
     constructor(name, redisConnection) {
@@ -32,7 +32,13 @@ class PostQueue extends BaseQueue {
                     throw error;
                 }
             },
-            { connection: this.redisConnection }
+            {
+                connection: this.redisConnection,
+                limiter: {
+                    max: 8,
+                    duration: 20
+                }
+            }
         );
     }
 }
