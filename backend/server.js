@@ -5,7 +5,7 @@ const { express, configs: cfg , redis } = require("./configs/index");
 const mongoose = require("mongoose");
 const cors = require("cors");
 
-const { notFoundHandler, errorHandler } = require("./middlewares");
+const { notFoundHandler, errorHandler, rateLimiter } = require("./middlewares");
 const router = require("./routes/paste");
 
 const PostQueue = require("./utils/patterns/postQueue");
@@ -36,6 +36,7 @@ mongoose.connect(cfg.MONGO.URI)
     })
     .then(async (client) => {
         app.set("clientRedis", client);
+        // app.use(rateLimiter(client));
 
         const postQueue = new PostQueue("post-queue", client);
         app.set("postQueue", postQueue);

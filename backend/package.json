@@ -20,6 +20,7 @@
     "ioredis": "^5.4.1",
     "mongoose": "^8.2.2",
     "p-queue": "^9.0.0",
+    "rate-limit-redis": "^4.2.3",
     "redis": "^5.9.0"
   },
   "devDependencies": {
