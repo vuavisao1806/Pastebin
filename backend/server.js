@@ -7,7 +7,7 @@ const { initializeShards } = require("./database/shards");
 const cors = require("cors");
 
 const { notFoundHandler, errorHandler, rateLimiter } = require("./middlewares");
-const router = require("./routes/paste");
+const router = require("./routes/index");
 
 const PostQueue = require("./utils/patterns/postQueue");
 
@@ -42,7 +42,7 @@ app.options("*", cors());
         const postQueue = new PostQueue("post-queue", client);
         app.set("postQueue", postQueue);
 
-        app.use("/api", router);
+        app.use(router);
         app.use(notFoundHandler);
         app.use(errorHandler);
 
