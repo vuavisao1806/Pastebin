@@ -19,5 +19,6 @@ const pasteSchema = new mongoose.Schema({
 
 
 // module.exports = mongoose.model("document", pasteSchema)
-const Document = mongoose.model("Document", pasteSchema);
-module.exports = Document;
+// const Document = mongoose.model("Document", pasteSchema);
+// module.exports = Document;
+module.exports = { pasteSchema };

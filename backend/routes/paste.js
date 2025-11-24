@@ -1,7 +1,8 @@
 const {express} = require("../configs/index");
 const router = express.Router();
 
-const Document = require("../models/model");
+// const Document = require("../database/model");
+const { getDocumentModel } = require("../database/shards");
 
 const PQueue = require("p-queue").default;
 const getQueue = new PQueue({ concurrency: 5, intervalCap: 20, interval: 2  });
@@ -87,6 +88,7 @@ router.get("/:id", catchAsyncHandler(async (req, res) => {
             // console.debug(`Cache hit for the document that has id: ${id}`);
         } else {
             // console.debug(`Cache miss for the document that has id: ${id}`);
+            const Document = getDocumentModel(id);
             document = await Document.findById(id);
         }
         if (!document) {

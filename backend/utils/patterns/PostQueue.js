@@ -1,7 +1,9 @@
+const mongoose = require("mongoose");
 const BaseQueue = require("./BaseQueue");
 const BaseCompetingConsumer = require("./BaseCompetingConsumer");
-const Document = require("../../models/model");
+// const Document = require("../../database/model");
 const { BadRequestError } = require("../ApiError");
+const { getDocumentModel } = require("../../database/shards");
 
 const POST_COMPETING_CONSUMER_NUMBER = 8;
 
@@ -20,7 +22,14 @@ class PostQueue extends BaseQueue {
             async (job) => {
                 try {
                     const { title, pasteValue, expiryTime } = job.data;
+
+                    const _id = new mongoose.Types.ObjectId();
+                    const key = _id.toString();
+
+                    const Document = getDocumentModel(key);
+
                     const document = await Document.create({
+                        _id,
                         title,
                         pasteValue,
                         uploadTime: new Date(),

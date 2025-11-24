@@ -2,7 +2,8 @@ require("dotenv").config();
 
 const { express, configs: cfg , redis } = require("./configs/index");
 
-const mongoose = require("mongoose");
+// const mongoose = require("mongoose");
+const { initializeShards } = require("./database/shards");
 const cors = require("cors");
 
 const { notFoundHandler, errorHandler, rateLimiter } = require("./middlewares");
@@ -29,12 +30,12 @@ app.use(cors({
 
 app.options("*", cors());
 
-mongoose.connect(cfg.MONGO.URI)
-    .then(() => {
-        console.log("Connected to MongoDB");
-        return redis.connect();
-    })
-    .then(async (client) => {
+(async () => {
+    try {
+        await initializeShards();
+        console.log("Connected to MongoDB shards");
+
+        const client = await redis.connect();
         app.set("clientRedis", client);
         // app.use(rateLimiter(client));
 
@@ -48,11 +49,36 @@ mongoose.connect(cfg.MONGO.URI)
         app.listen(cfg.BASE.PORT, cfg.BASE.HOST, () => {
             console.log(`Server listening at ${cfg.BASE.getUrl()}`);
         });
-    })
-    .catch ((error) => {
+    } catch (error) {
         console.error("Error connecting to MongoDB:", error);
         process.exit(1);
-    });
+    }
+})();
+
+// mongoose.connect(cfg.MONGO.URI)
+//     .then(() => {
+//         console.log("Connected to MongoDB");
+//         return redis.connect();
+//     })
+//     .then(async (client) => {
+//         app.set("clientRedis", client);
+//         // app.use(rateLimiter(client));
+//
+//         const postQueue = new PostQueue("post-queue", client);
+//         app.set("postQueue", postQueue);
+//
+//         app.use("/api", router);
+//         app.use(notFoundHandler);
+//         app.use(errorHandler);
+//
+//         app.listen(cfg.BASE.PORT, cfg.BASE.HOST, () => {
+//             console.log(`Server listening at ${cfg.BASE.getUrl()}`);
+//         });
+//     })
+//     .catch ((error) => {
+//         console.error("Error connecting to MongoDB:", error);
+//         process.exit(1);
+//     });
 
 
 module.exports = app;
