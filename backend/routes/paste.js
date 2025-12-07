@@ -1,8 +1,10 @@
 const { express } = require("../configs/index");
+const CircuitBreaker = require("opossum");
+const pRetry = require("p-retry").default;
 const router = express.Router();
 
 // const Document = require("../database/model");
-const { getDocumentModel } = require("../database/shards");
+const { getDocumentModel, getShardIndexByKeyId} = require("../database/shards");
 
 const PQueue = require("p-queue").default;
 const getQueue = new PQueue({ concurrency: 5, intervalCap: 20, interval: 2  });
@@ -12,14 +14,32 @@ const { StatusCodes } = require("http-status-codes");
 const catchAsyncHandler = require("../utils/catchAsyncHandler");
 const { NotFoundError, ForbiddenError, BadRequestError  } = require("../utils/ApiError");
 
+const inPostQueue = async (postQueue, data) => {
+    return postQueue.add("createPastebin", data, {
+        removeOnFail: false,
+    });
+}
+
+const postQueueCircuitBreaker = new CircuitBreaker(inPostQueue, {
+    timeout: 3000,
+    errorThresholdPercentage: 50,
+    resetTimeout: 15000
+})
+
 router.post("/save", catchAsyncHandler(async (req, res) => {
     const { title, pasteValue, expiryTime } = req.body
 
 
     const postQueue = req.app.get("postQueue");
-    const job = await postQueue.add("createPastebin", { title, pasteValue, expiryTime }, {
-        removeOnFail: false
-    })
+    // const job = await postQueue.add("createPastebin", { title, pasteValue, expiryTime }, {
+    //     removeOnFail: false,
+    //     // removeOnComplete: false,
+    // })
+
+    const job = await pRetry(
+        () => postQueueCircuitBreaker.fire(postQueue, { title, pasteValue, expiryTime }),
+        { retries: 3 }
+    )
 
     // for checking rate limiting
     // const maxJobs = 10;
@@ -67,6 +87,22 @@ router.get("/jobs/:jobId", catchAsyncHandler(async (req, res) => {
     return res.status(StatusCodes.ACCEPTED).json({ currentState, timeEvents });
 }));
 
+const findDocumentById = async (Document, id) => Document.findById(id);
+
+const circuitBreakers = new Map();
+
+function getCircuitBreakerForShardId(shardId) {
+    if (!circuitBreakers.has(shardId)) {
+        const circuitBreaker = new CircuitBreaker(findDocumentById, {
+            timeout: 3000,
+            errorThresholdPercentage: 50,
+            resetTimeout: 15000
+        });
+        circuitBreakers.set(shardId, circuitBreaker);
+    }
+    return circuitBreakers.get(shardId);
+}
+
 router.get("/:id", catchAsyncHandler(async (req, res) => {
     const id = req.params.id;
     const document = await getQueue.add(async () => {
@@ -89,7 +125,14 @@ router.get("/:id", catchAsyncHandler(async (req, res) => {
         } else {
             // console.debug(`Cache miss for the document that has id: ${id}`);
             const Document = getDocumentModel(id);
-            document = await Document.findById(id);
+            const shardIndex = getShardIndexByKeyId(id);
+
+            const circuitBreaker = getCircuitBreakerForShardId(shardIndex);
+            // document = await Document.findById(id);
+            document = await pRetry(
+                () => circuitBreaker.fire(Document, id),
+                { retries: 3 }
+            );
         }
         if (!document) {
             throw new NotFoundError("Document not found");

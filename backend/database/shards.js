@@ -28,6 +28,10 @@ async function initializeShards() {
     }
 }
 
+function getShardIndexByKeyId(key) {
+    return getShardIndex(String(key), DocumentModels.length);
+}
+
 function getDocumentModel(key) {
     if (DocumentModels.length === 0) {
         throw new Error("Error on the shard configured process, and no document model is configured");
@@ -39,5 +43,6 @@ function getDocumentModel(key) {
 
 module.exports = {
     initializeShards,
-    getDocumentModel
+    getDocumentModel,
+    getShardIndexByKeyId
 }

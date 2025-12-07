@@ -3,7 +3,9 @@ const BaseQueue = require("./BaseQueue");
 const BaseCompetingConsumer = require("./BaseCompetingConsumer");
 // const Document = require("../../database/model");
 const { BadRequestError } = require("../ApiError");
-const { getDocumentModel } = require("../../database/shards");
+const { getDocumentModel, getShardIndexByKeyId } = require("../../database/shards");
+const CircuitBreaker = require("opossum");
+const {getShardIndex} = require("../hash");
 
 const POST_COMPETING_CONSUMER_NUMBER = 8;
 
@@ -11,9 +13,25 @@ class PostQueue extends BaseQueue {
     constructor(name, redisConnection) {
         super(name, redisConnection);
 
+        this.circuitBreakers = new Map();
+
         for (let i = 0; i < POST_COMPETING_CONSUMER_NUMBER; ++i) {
             this.competingConsumers.push(this.createPostCompetingConsumer());
         }
+    }
+
+    getCircuitBreakerForShardId(shardId) {
+        if (!this.circuitBreakers.has(shardId)) {
+            const circuitBreaker = new CircuitBreaker(
+                async (Document, payload) => Document.create(payload), {
+                    timeout: 3000,
+                    errorThresholdPercentage: 50,
+                    resetTimeout: 15000
+                }
+            );
+            this.circuitBreakers.set(shardId, circuitBreaker);
+        }
+        return this.circuitBreakers.get(shardId);
     }
 
     createPostCompetingConsumer() {
@@ -27,14 +45,21 @@ class PostQueue extends BaseQueue {
                     const key = _id.toString();
 
                     const Document = getDocumentModel(key);
+                    const shardIndex = getShardIndexByKeyId(key);
 
-                    const document = await Document.create({
+                    const circuitBreaker = this.getCircuitBreakerForShardId(shardIndex);
+
+                    const payload = {
                         _id,
                         title,
                         pasteValue,
                         uploadTime: new Date(),
                         expiryTime: calculateExpiryTime(expiryTime)
-                    });
+                    };
+
+                    const document = await circuitBreaker.fire(Document, payload);
+
+                    // const document = await Document.create(payload);
                     return { id: document._id.toString() };
                 } catch (error) {
                     console.error(`Job ${job.id} failed:`, error);
@@ -43,10 +68,10 @@ class PostQueue extends BaseQueue {
             },
             {
                 connection: this.redisConnection,
-                limiter: {
-                    max: 8,
-                    duration: 20
-                }
+                // limiter: {
+                //     max: 8,
+                //     duration: 20
+                // }
             }
         );
     }

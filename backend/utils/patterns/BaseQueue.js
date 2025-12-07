@@ -5,7 +5,14 @@ const { Queue } = require("bullmq");
  */
 class BaseQueue extends Queue {
     constructor(name, redisConnection) {
-        super(name, { connection: redisConnection });
+        super(name, {
+            connection: redisConnection,
+            defaultJobOptions: {
+                attempts: 5,
+                backoff: { type: "exponential", default: 1000 },
+                removeOnFail: false
+            }
+        });
         this.redisConnection = redisConnection;
         this.competingConsumers = [];
         this.setMaxListeners(Infinity);
